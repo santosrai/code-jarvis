@@ -1,0 +1,114 @@
+{
+  "atoms": {
+    "colors": {
+      "H": "#ffffff",
+      "C": "#606060",
+      "N": "#0066ff",
+      "O": "#ff0d0d",
+      "F": "#90e050",
+      "P": "#ff8000",
+      "S": "#ffff30",
+      "Cl": "#1ff01f",
+      "Br": "#a62929",
+      "I": "#940094",
+      "default": "#888888"
+    },
+    "radii": {
+      "H": 0.3,
+      "C": 0.6,
+      "N": 0.6,
+      "O": 0.6,
+      "F": 0.5,
+      "P": 0.9,
+      "S": 0.9,
+      "Cl": 0.9,
+      "Br": 1.0,
+      "I": 1.2,
+      "default": 0.4
+    },
+    "sphereQuality": {
+      "widthSegments": 20,
+      "heightSegments": 20
+    },
+    "material": {
+      "shininess": 30,
+      "specular": "#222222"
+    }
+  },
+  "bonds": {
+    "radii": {
+      "single": 0.05,
+      "double": 0.05,
+      "triple": 0.05,
+      "default": 0.05
+    },
+    "color": "#888888",
+    "cylinderQuality": {
+      "radialSegments": 12
+    },
+    "material": {
+      "shininess": 20,
+      "specular": "#111111"
+    },
+    "multipleBondOffset": 0.2,
+    "doubleBondGap": 0.15,
+    "tripleBondGap": 0.12,
+    "lengthMultiplier": {
+      "value": 1.0,
+      "min": 0.5,
+      "max": 3.0,
+      "step": 0.1,
+      "description": "Multiplier for bond lengths (1.0 = original, 2.0 = double length, 0.5 = half length)"
+    }
+  },
+  "lighting": {
+    "ambient": {
+      "color": "#404040",
+      "intensity": 0.4
+    },
+    "directional1": {
+      "color": "#ffffff",
+      "intensity": 0.8,
+      "position": [10, 10, 5],
+      "castShadow": true
+    },
+    "directional2": {
+      "color": "#ffffff",
+      "intensity": 0.3,
+      "position": [-10, -10, -5]
+    },
+    "point": {
+      "color": "#ffffff",
+      "intensity": 0.2,
+      "distance": 100,
+      "position": [0, 0, 10]
+    }
+  },
+  "scene": {
+    "background": "#000000",
+    "autoCenter": true,
+    "fitScale": 1.5,
+    "atomSpacing": {
+      "multiplier": 1.0,
+      "description": "Multiplier for atom distances (1.0 = original, 2.0 = double spacing, 0.5 = half spacing)"
+    }
+  },
+  "camera": {
+    "fov": 75,
+    "near": 0.1,
+    "far": 1000,
+    "defaultDistance": 10
+  },
+  "controls": {
+    "rotationSensitivity": 0.01,
+    "zoomSensitivity": {
+      "in": 0.9,
+      "out": 1.1
+    },
+    "zoomLimits": {
+      "min": 0.5,
+      "max": 5
+    },
+    "verticalRotationLimit": 1.5708
+  }
+}
