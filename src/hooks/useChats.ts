@@ -6,6 +6,13 @@ import useLocalStorage from './useLocalStorage';
 import { LOCALSTORAGE_CHATS_KEY, DEFAULT_CHAT_TITLE } from '@/lib/constants';
 import { v4 as uuidv4 } from 'uuid';
 
+const MAX_CHATS = 50;
+function pruneChats(chats: ChatSession[]): ChatSession[] {
+  return [...chats]
+    .sort((a, b) => new Date(b.lastModifiedAt).getTime() - new Date(a.lastModifiedAt).getTime())
+    .slice(0, MAX_CHATS);
+}
+
 export function useChats() {
   const [chats, setChats] = useLocalStorage<ChatSession[]>(LOCALSTORAGE_CHATS_KEY, []);
   const [activeChatId, setActiveChatIdState] = useState<string | null>(null);
@@ -38,19 +45,17 @@ export function useChats() {
       visualizationLayers: [],
       activeLayerId: null,
     };
-    setChats(prev => [newChatSession, ...prev]);
+    setChats(prev => pruneChats([newChatSession, ...prev]));
     setActiveChatIdState(newId); 
     return newChatSession;
   }, [chats.length, setChats]);
 
   const updateChat = useCallback((chatId: string, updates: Partial<Omit<ChatSession, 'id' | 'createdAt' | 'chatHistory' | 'visualizationLayers'>>) => {
-    setChats(prevChats =>
-      prevChats.map(chat =>
-        chat.id === chatId
-          ? { ...chat, ...updates, lastModifiedAt: new Date().toISOString() }
-          : chat
-      )
-    );
+    setChats(prevChats => pruneChats(prevChats.map(chat =>
+      chat.id === chatId
+        ? { ...chat, ...updates, lastModifiedAt: new Date().toISOString() }
+        : chat
+    )));
   }, [setChats]);
 
   const addMessageToActiveChat = useCallback((message: Omit<Message, 'id' | 'timestamp'>): Message | undefined => {
@@ -61,40 +66,36 @@ export function useChats() {
       timestamp: new Date().toISOString(),
     };
 
-    setChats(prevChats =>
-      prevChats.map(chat => {
-        if (chat.id === activeChatId) {
-          return {
-            ...chat,
-            chatHistory: [...chat.chatHistory, newMessage],
-            lastModifiedAt: new Date().toISOString(),
-          };
-        }
-        return chat;
-      })
-    );
+    setChats(prevChats => pruneChats(prevChats.map(chat => {
+      if (chat.id === activeChatId) {
+        return {
+          ...chat,
+          chatHistory: [...chat.chatHistory, newMessage],
+          lastModifiedAt: new Date().toISOString(),
+        };
+      }
+      return chat;
+    })));
     return newMessage;
   }, [activeChatId, setChats]);
 
   const updateMessageInActiveChat = useCallback((messageId: string, updates: Partial<Message>) => {
     if (!activeChatId) return;
 
-    setChats(prevChats =>
-      prevChats.map(chat => {
-        if (chat.id === activeChatId) {
-          const newChatHistory = chat.chatHistory.map(msg =>
-            msg.id === messageId ? { ...msg, ...updates } : msg
-          );
-          const historyChanged = JSON.stringify(newChatHistory) !== JSON.stringify(chat.chatHistory);
-          return {
-            ...chat,
-            chatHistory: newChatHistory,
-            lastModifiedAt: historyChanged || updates.content || typeof updates.isLoading === 'boolean' ? new Date().toISOString() : chat.lastModifiedAt,
-          };
-        }
-        return chat;
-      })
-    );
+    setChats(prevChats => pruneChats(prevChats.map(chat => {
+      if (chat.id === activeChatId) {
+        const newChatHistory = chat.chatHistory.map(msg =>
+          msg.id === messageId ? { ...msg, ...updates } : msg
+        );
+        const historyChanged = JSON.stringify(newChatHistory) !== JSON.stringify(chat.chatHistory);
+        return {
+          ...chat,
+          chatHistory: newChatHistory,
+          lastModifiedAt: historyChanged || updates.content || typeof updates.isLoading === 'boolean' ? new Date().toISOString() : chat.lastModifiedAt,
+        };
+      }
+      return chat;
+    })));
   }, [activeChatId, setChats]);
 
 
@@ -105,59 +106,53 @@ export function useChats() {
       layerId: uuidv4(),
       timestamp: new Date().toISOString(),
     };
-    setChats(prevChats =>
-      prevChats.map(chat => {
-        if (chat.id === activeChatId) {
-          return {
-            ...chat,
-            visualizationLayers: [...chat.visualizationLayers, newLayer],
-            activeLayerId: newLayer.layerId, 
-            lastModifiedAt: new Date().toISOString(),
-          };
-        }
-        return chat;
-      })
-    );
+    setChats(prevChats => pruneChats(prevChats.map(chat => {
+      if (chat.id === activeChatId) {
+        return {
+          ...chat,
+          visualizationLayers: [...chat.visualizationLayers, newLayer],
+          activeLayerId: newLayer.layerId, 
+          lastModifiedAt: new Date().toISOString(),
+        };
+      }
+      return chat;
+    })));
     return newLayer;
   }, [activeChatId, setChats]);
 
   const updateVisualizationLayerInActiveChat = useCallback((layerId: string, updates: Partial<Omit<VisualizationLayer, 'layerId' | 'promptMessageId'>>) => {
     if (!activeChatId) return;
-    setChats(prevChats =>
-      prevChats.map(chat => {
-        if (chat.id === activeChatId) {
-          return {
-            ...chat,
-            visualizationLayers: chat.visualizationLayers.map(l =>
-              l.layerId === layerId ? { ...l, ...updates, timestamp: new Date().toISOString() } : l
-            ),
-            lastModifiedAt: new Date().toISOString(), // Ensure chat is marked as modified
-          };
-        }
-        return chat;
-      })
-    );
+    setChats(prevChats => pruneChats(prevChats.map(chat => {
+      if (chat.id === activeChatId) {
+        return {
+          ...chat,
+          visualizationLayers: chat.visualizationLayers.map(l =>
+            l.layerId === layerId ? { ...l, ...updates, timestamp: new Date().toISOString() } : l
+          ),
+          lastModifiedAt: new Date().toISOString(),
+        };
+      }
+      return chat;
+    })));
   }, [activeChatId, setChats]);
 
   const removeVisualizationLayerFromActiveChat = useCallback((layerId: string) => {
     if (!activeChatId) return;
 
-    setChats(prevChats =>
-      prevChats.map(chat => {
-        if (chat.id === activeChatId) {
-          const updatedLayers = chat.visualizationLayers.filter(layer => layer.layerId !== layerId);
-          const newActiveLayerId = updatedLayers.length > 0 ? updatedLayers[0].layerId : null;
+    setChats(prevChats => pruneChats(prevChats.map(chat => {
+      if (chat.id === activeChatId) {
+        const updatedLayers = chat.visualizationLayers.filter(layer => layer.layerId !== layerId);
+        const newActiveLayerId = updatedLayers.length > 0 ? updatedLayers[0].layerId : null;
 
-          return {
-            ...chat,
-            visualizationLayers: updatedLayers,
-            activeLayerId: newActiveLayerId,
-            lastModifiedAt: new Date().toISOString(),
-          };
-        }
-        return chat;
-      })
-    );
+        return {
+          ...chat,
+          visualizationLayers: updatedLayers,
+          activeLayerId: newActiveLayerId,
+          lastModifiedAt: new Date().toISOString(),
+        };
+      }
+      return chat;
+    })));
   }, [activeChatId, setChats]);
 
   const setActiveVisualizationLayer = useCallback((layerId: string | null) => {
@@ -170,7 +165,7 @@ export function useChats() {
   }, [updateChat]);
 
   const deleteChat = useCallback((chatId: string) => {
-    setChats(prevChats => prevChats.filter(chat => chat.id !== chatId));
+    setChats(prevChats => pruneChats(prevChats.filter(chat => chat.id !== chatId)));
   }, [setChats]); 
 
   const importChat = useCallback((chatData: ChatSession) => {
@@ -179,7 +174,7 @@ export function useChats() {
         const chatToImport = existingChat ? { ...chatData, id: uuidv4(), title: `${chatData.title} (Imported)` } : chatData;
         const updatedChats = [chatToImport, ...prev.filter(s => s.id !== chatToImport.id)]; 
         setActiveChatIdState(chatToImport.id); 
-        return updatedChats;
+        return pruneChats(updatedChats);
     });
   }, [setChats]);
 

@@ -14,6 +14,10 @@ import type { Message } from "@/types";
 const FormattedContent: React.FC<{ content: Record<string, any> }> = ({
   content,
 }) => {
+  if (!content || typeof content !== 'object') {
+    // Defensive: if content is undefined or not an object, render nothing or fallback
+    return null;
+  }
   if (
     content.type === "table" &&
     Array.isArray(content.data) &&
@@ -149,8 +153,10 @@ export const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
         )}
         onClick={canInteractWithContent ? handleContentClick : undefined}
         aria-selected={
-          canInteractWithContent &&
-          activeChat?.activeLayerId === message.visualizationLayerId
+          !!(
+            canInteractWithContent &&
+            activeChat?.activeLayerId === message.visualizationLayerId
+          ) || undefined
         }
       >
         <CardContent className="p-3 text-sm">

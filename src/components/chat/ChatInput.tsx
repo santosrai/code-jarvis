@@ -99,7 +99,6 @@ export const ChatInput: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
     let pendingLayerId: string | null = null;
 
     try {
-      let copilotResponseMessage: Partial<Message> = { isLoading: false };
       let layerIdToActivate: string | null = null;
 
       // Handle different backends
@@ -138,33 +137,72 @@ export const ChatInput: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
         let proteinDataPDB = null;
         let shouldUpdateCanvas = false;
 
-        if (response.agentName === 'PDBAgent' && Array.isArray(response.response) && response.response.length > 0) {
-          // Parse the first stringified JSON in the array
-          try {
-            const pdbObj = JSON.parse(response.response[0]);
-            chatContent = pdbObj.responseText || '';
-            pdbId = pdbObj.pdbId;
-            pdbUrl = pdbObj.pdbUrl;
-            proteinName = pdbObj.proteinName;
-            proteinDataPDB = pdbObj.proteinDataPDB;
-          } catch (e) {
-            chatContent = 'Error parsing PDBAgent response.';
+        // Updated logic for new n8n response format
+        if (
+          response.agentName === 'PDBAgent' &&
+          (
+            (response.pdbData && response.pdbData.pdbId) ||
+            (response.metadata && Array.isArray(response.metadata.response) && response.metadata.response.length > 0)
+          )
+        ) {
+          if (response.pdbData && response.pdbData.pdbId) {
+            chatContent = response.message || '';
+            pdbId = response.pdbData.pdbId;
+            pdbUrl = response.pdbData.pdbUrl;
+            proteinName = response.pdbData.proteinName;
+            proteinDataPDB = response.pdbData.proteinDataPDB;
+          } else if (response.metadata && Array.isArray(response.metadata.response) && response.metadata.response.length > 0) {
+            try {
+              const pdbObj = JSON.parse(response.metadata.response[0]);
+              chatContent = pdbObj.responseText || response.message || '';
+              pdbId = pdbObj.pdbId;
+              pdbUrl = pdbObj.pdbUrl;
+              proteinName = pdbObj.proteinName;
+              proteinDataPDB = pdbObj.proteinDataPDB;
+            } catch (e) {
+              chatContent = 'Error parsing PDBAgent metadata response.';
+            }
           }
-        } else if (typeof response.response === 'string') {
-          chatContent = response.response;
+        } else if (response.response !== undefined) {
+          // Use response.response if present
+          if (Array.isArray(response.response)) {
+            chatContent = response.response.map((r: any) => (typeof r === 'string' ? r : JSON.stringify(r))).join('\n');
+          } else if (typeof response.response === 'string' || typeof response.response === 'number') {
+            chatContent = String(response.response);
+          } else {
+            chatContent = JSON.stringify(response.response);
+          }
+        } else if (response.message !== undefined) {
+          // Fallback to response.message
+          chatContent = String(response.message);
         } else {
-          chatContent = JSON.stringify(response.response);
+          chatContent = '[No response content]';
         }
 
         // Always show the response in chat
-        copilotResponseMessage.content = chatContent;
+        if (typeof chatContent !== 'string') {
+          chatContent = JSON.stringify(chatContent);
+        }
+        // Build a complete Message object
+        let copilotResponseMessage: Message = {
+          id: thinkingMessage.id,
+          sender: "copilot",
+          content: chatContent,
+          isLoading: false,
+          timestamp: new Date().toISOString(),
+        };
+
+        // Debug log for all n8n agent types
+        console.log('copilotResponseMessage (n8n):', copilotResponseMessage);
 
         // Only update the 3D canvas if cmd is 'update canvas' and we have a valid pdbId
+        const cmd = response.cmd || response.data?.cmd || response.metadata?.cmd;
         if (
           response.agentName === 'PDBAgent' &&
-          response.cmd === 'update canvas' &&
+          cmd === 'update canvas' &&
           pdbId && pdbId !== 'N/A'
         ) {
+          console.log('PDBAgent canvas update: pdbId', pdbId);
           // Create a pending layer for the PDB structure
           const pendingLayer = addVisualizationLayerToActiveChat({
             promptMessageId: userMessage.id,
@@ -175,6 +213,7 @@ export const ChatInput: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
             status: 'pending',
             components: [{ id: 'protein', name: 'Protein', visible: true }],
           });
+          console.log('PDBAgent canvas update: pendingLayer', pendingLayer);
 
           if (pendingLayer) {
             pendingLayerId = pendingLayer.layerId;
@@ -185,6 +224,7 @@ export const ChatInput: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
             try {
               // Fetch PDB data from the RCSB database
               const pdbResult = await getProteinPdbById(pdbId);
+              console.log('PDBAgent canvas update: pdbResult', pdbResult);
               if (pdbResult) {
                 updateVisualizationLayerInActiveChat(pendingLayerId, {
                   name: `${pdbResult.name} (${pdbId.toUpperCase()})`,
@@ -217,17 +257,18 @@ export const ChatInput: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
             }
           }
         }
+        // Always update the message for all n8n agent types
         updateMessageInActiveChat(thinkingMessage.id, copilotResponseMessage);
         return;
       } else {
         // Gemini AI backend handling (existing logic)
+        let copilotResponseMessage: Partial<Message> = { isLoading: false };
         updateMessageInActiveChat(thinkingMessage.id, {
           isLoading: true,
           content: `AI is thinking...`,
         });
         const chatResponse: GenerateChatResponseOutput =
           await generateChatResponse({ command: trimmedInput });
-
         copilotResponseMessage.content = chatResponse.responseText;
 
         // Handle the regular chat response and structure data

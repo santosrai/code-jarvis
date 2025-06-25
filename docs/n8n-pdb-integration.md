@@ -2,35 +2,37 @@
 
 ## Overview
 
-This feature automatically detects PDB IDs in N8N webhook responses and renders them in the 3D molecular viewer. The system is specifically designed to work with structured JSON responses from different N8N agents, with special handling for PDB Agent responses.
+This feature automatically detects PDB IDs in N8N webhook responses and renders them in the 3D molecular viewer. The system is designed to work with structured JSON responses from different N8N agents, with special handling for PDB Agent responses.
 
 ## Response Format
 
-### Structured JSON Response
+### General JSON Response
 
 The N8N workflow should return responses in the following format:
 
 ```json
 {
-  "responseText": "The response message to display in chat",
-  "agentName": "agentType"
+  "response": "The response message to display in chat or an array of messages",
+  "agentName": "agentType",
+  "cmd": "update canvas" // optional, can be null
 }
 ```
 
+- `response` can be a string, number, or an array (for some agents)
+- `agentName` is the type of agent (e.g., `searchAgent`, `calculatorAgent`, `PDBAgent`)
+- `cmd` is an optional command for the frontend (e.g., `update canvas`)
+
 ### PDB Agent Response
 
-For PDB Agent responses, include additional PDB-specific data:
+For PDB Agent responses, the `response` field is an array of stringified JSON objects containing PDB-specific data:
 
 ```json
 {
-  "responseText": "Found Caffeine protein structure! This protein is now loaded in the 3D viewer.",
+  "response": [
+    "{\"responseText\":\"Found caffeine molecule structure!\",\"proteinName\":\"caffeine\",\"proteinDataPDB\":\"\",\"pdbUrl\":\"https://www.rcsb.org/structure/8FTG\",\"pdbId\":\"8FTG\"}"
+  ],
   "agentName": "PDBAgent",
-  "pdbId": "2PGH",
-  "pdbUrl": "https://www.rcsb.org/structure/2PGH",
-  "proteinName": "Caffeine",
-  "proteinDataPDB": "N/A",
-  "query_id": "N/A",
-  "result_set": []
+  "cmd": "update canvas"
 }
 ```
 
@@ -40,8 +42,8 @@ For PDB Agent responses, include additional PDB-specific data:
 
 The system processes responses differently based on the `agentName`:
 
-1. **PDBAgent**: Automatically renders 3D structures when `pdbId` is provided
-2. **Other Agents**: Only displays the `responseText` in chat
+1. **PDBAgent**: Parses the first element of the `response` array as JSON and renders 3D structures when `pdbId` is provided
+2. **Other Agents**: Displays the `response` (string, number, or array) in chat
 
 ### PDB Structure Rendering
 
@@ -59,21 +61,22 @@ When a PDB Agent response is received:
 **N8N Response**:
 ```json
 {
-  "responseText": "Found Caffeine protein structure! This protein is now loaded in the 3D viewer.",
+  "response": [
+    "{\"responseText\":\"Found caffeine molecule structure!\",\"proteinName\":\"caffeine\",\"proteinDataPDB\":\"\",\"pdbUrl\":\"https://www.rcsb.org/structure/8FTG\",\"pdbId\":\"8FTG\"}"
+  ],
   "agentName": "PDBAgent",
-  "pdbId": "2PGH",
-  "pdbUrl": "https://www.rcsb.org/structure/2PGH",
-  "proteinName": "Caffeine"
+  "cmd": "update canvas"
 }
 ```
-**Result**: Automatically loads 2PGH in the 3D viewer
+**Result**: Automatically loads 8FTG in the 3D viewer
 
 ### Example 2: Search Agent Response
 **N8N Response**:
 ```json
 {
-  "responseText": "Caffeine is a central nervous system (CNS) stimulant of the methylxanthine class.",
-  "agentName": "search"
+  "response": "Caffeine is a central nervous system (CNS) stimulant of the methylxanthine class.",
+  "agentName": "searchAgent",
+  "cmd": null
 }
 ```
 **Result**: Only displays the text in chat, no 3D rendering
@@ -82,8 +85,9 @@ When a PDB Agent response is received:
 **N8N Response**:
 ```json
 {
-  "responseText": "3",
-  "agentName": "functions.calculator"
+  "response": [3],
+  "agentName": "calculatorAgent",
+  "cmd": null
 }
 ```
 **Result**: Only displays the calculation result in chat
@@ -101,8 +105,8 @@ NEXT_PUBLIC_N8N_WEBHOOK_URL=https://your-n8n-instance.com/webhook/your-webhook-i
 
 Your N8N workflow should:
 1. Process the user's query with appropriate agents
-2. Return structured JSON responses with `responseText` and `agentName`
-3. Include PDB-specific data for PDB Agent responses
+2. Return structured JSON responses with `response` and `agentName`
+3. For PDB Agent, include a stringified JSON object in the `response` array
 4. Use the "Respond to Webhook" node to send the response
 
 ## Error Handling
@@ -117,18 +121,24 @@ The system handles various error scenarios:
 
 ### Files Modified
 - `src/components/chat/ChatInput.tsx`: Main integration logic
-- `src/services/n8n-webhook.ts`: Enhanced response parsing for structured format
+- `src/services/n8n-webhook.ts`: Enhanced response parsing for new format
 - `src/services/pdb.ts`: PDB data fetching (existing)
 
 ### Key Interfaces
 ```typescript
-interface N8nStructuredResponse {
-  responseText: string;
+interface N8nResponse {
+  response: string | number | Array<string | number>;
   agentName: string;
-  pdbId?: string;
-  pdbUrl?: string;
+  cmd?: string | null;
+}
+
+// For PDBAgent, the first element of response array is a stringified object:
+interface PDBAgentResponse {
+  responseText: string;
   proteinName?: string;
   proteinDataPDB?: string;
+  pdbUrl?: string;
+  pdbId?: string;
   query_id?: string;
   result_set?: any[];
 }
@@ -136,8 +146,8 @@ interface N8nStructuredResponse {
 
 ### Response Processing Flow
 1. Parse JSON response
-2. Extract `responseText` and `agentName`
-3. Check if `agentName === 'PDBAgent'`
+2. Extract `response` and `agentName`
+3. If `agentName === 'PDBAgent'` and `response` is an array, parse the first element as JSON
 4. If PDB Agent and `pdbId` exists, create visualization layer
 5. Fetch PDB data and render in 3D viewer
 6. Display appropriate user feedback
@@ -154,7 +164,7 @@ interface N8nStructuredResponse {
 
 2. **Response not displaying**
    - Ensure response is valid JSON
-   - Check that `responseText` field is present
+   - Check that `response` field is present
    - Verify webhook URL is correct
 
 3. **Agent not recognized**
@@ -174,9 +184,9 @@ Enable console logging to see:
 
 Currently supported agent types:
 - `PDBAgent`: Renders 3D structures
-- `search`: Text-only responses
+- `searchAgent`: Text-only responses
 - `emailAgent`: Text-only responses
-- `functions.calculator`: Text-only responses
+- `calculatorAgent`: Text-only responses
 - Any other agent: Text-only responses
 
 ## Future Enhancements

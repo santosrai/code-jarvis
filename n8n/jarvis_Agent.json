@@ -3,6 +3,93 @@
   "nodes": [
     {
       "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.sessionId }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        -420,
+        180
+      ],
+      "id": "5f5967c0-7f5f-4226-91ba-cf5d4cbf62e3",
+      "name": "Window Buffer Memory1"
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.output }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        860,
+        -100
+      ],
+      "id": "7e8e1255-9118-4b5a-b21d-07dce825bce7",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.chatInput }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "=# Overview\nYou are the Jarvis personal assistant. Your job is to send the user's query to the correct tool. You should never be creating summaries, you just need to call the correct tool.\nRespond with repsonse with following valid JSON:\n{\n  \"response\": [\"all output from the tools\"],\n  \"agentName\": \"Tool's name\",\n  \"cmd\" : \"command\" || null\n}\n\n## Examples:\n{\n  \"response\": \"This is output from the Agent\",\n  \"agentName\": \"searchAgent\",\n  \"cmd\" : null\n}\n\n\n## Tools\n- emailAgent: Use this tool to take action in email\n- calendarAgent: Use this tool to take action in calendar\n- searchAgent: Use this tool to search on the web\n- PDBAgent: Use this tool to analyze this user query and extract/correct the molecule or protein name for database searching.\n\n## Rules\n- Some actions require you to look up contact information first. For the following actions, you must get contact information and send that to the agent who needs it:\n  - sending emails\n  - drafting emails\n  - creating calendar event with attendee\n\n- If you are connected to PDB Agent and if PDB Agent respond with PDBId then return a structured JSON response\n  - `response`: [all output from PDBAgent]\n  - `agentName`: PDBAgent\n  - `cmd` : \"update canvas\"\n\n- If you are connected to searchAgent, respond with repsonse with following valid JSON. \nReturn a structured JSON response:\n  - `response`: [a user friendly with summarized content]\n  - `agentName`: searchAgent\n  - `cmd` : null\n\n- If you are connected to CalculatorAgent, respond with following valid JSON\n- `response`: [output from calculatorAgent]\n  - `agentName`: calculatorAgent\n  - `cmd` : null\n\n## Final Reminders\nHere is the current date/time: {{ $now }}\nDO NOT EDIT THE OUTPUT OF PDBAGENT\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        -160,
+        -100
+      ],
+      "id": "c246c2a6-df7c-4681-a11d-dc6a701e0216",
+      "name": "Jarvis Assistant",
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "8bd2939c-a3f4-44f9-81ea-0bc9ee86ce7d",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -660,
+        -100
+      ],
+      "id": "f0620494-f1a4-453d-84a4-a1d94cf6f4d6",
+      "name": "Webhook",
+      "webhookId": "8bd2939c-a3f4-44f9-81ea-0bc9ee86ce7d"
+    },
+    {
+      "parameters": {
+        "model": "gpt-4-turbo",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.1,
+      "position": [
+        -600,
+        160
+      ],
+      "id": "7b315366-25d8-455a-8833-b770a16b2952",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "zQKphmcQgXIuv9Rt",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
         "name": "emailAgent",
         "description": "Call this tool for any email actions.",
         "workflowId": {
@@ -23,36 +110,11 @@
       "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
       "typeVersion": 2,
       "position": [
-        -420,
-        460
+        -340,
+        640
       ],
       "id": "9778cfe1-c129-44ab-bbe8-5454526e51e9",
-      "name": "Email Agent1"
-    },
-    {
-      "parameters": {
-        "sessionIdType": "customKey",
-        "sessionKey": "={{ $('Webhook1').item.json.body.sessionId }}"
-      },
-      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
-      "typeVersion": 1.3,
-      "position": [
-        -420,
-        180
-      ],
-      "id": "5f5967c0-7f5f-4226-91ba-cf5d4cbf62e3",
-      "name": "Window Buffer Memory1"
-    },
-    {
-      "parameters": {},
-      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
-      "typeVersion": 1,
-      "position": [
-        340,
-        320
-      ],
-      "id": "8435179c-15d6-4c21-a1fd-119041d35aff",
-      "name": "Calculator1"
+      "name": "EmailAgent"
     },
     {
       "parameters": {
@@ -76,30 +138,11 @@
       "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
       "typeVersion": 2,
       "position": [
-        -260,
-        460
+        -180,
+        640
       ],
       "id": "35171b69-fdfb-439c-ae16-2235fd707e04",
-      "name": "Calendar Agent1"
-    },
-    {
-      "parameters": {
-        "options": {}
-      },
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
-      "typeVersion": 1.1,
-      "position": [
-        -600,
-        160
-      ],
-      "id": "7b315366-25d8-455a-8833-b770a16b2952",
-      "name": "OpenAI Chat Model1",
-      "credentials": {
-        "openAiApi": {
-          "id": "zQKphmcQgXIuv9Rt",
-          "name": "OpenAi account"
-        }
-      }
+      "name": "Calendar Agent"
     },
     {
       "parameters": {
@@ -108,68 +151,17 @@
       "type": "@n8n/n8n-nodes-langchain.toolSerpApi",
       "typeVersion": 1,
       "position": [
-        -60,
-        460
+        -40,
+        640
       ],
       "id": "b9606136-8096-4208-8897-51ee67682d47",
-      "name": "SerpAPI1",
+      "name": "searchAgent",
       "credentials": {
         "serpApi": {
           "id": "IWnil3jRW8ChKfhg",
           "name": "SerpAPI account"
         }
       }
-    },
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "8bd2939c-a3f4-44f9-81ea-0bc9ee86ce7d",
-        "responseMode": "responseNode",
-        "options": {
-          "rawBody": false
-        }
-      },
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2,
-      "position": [
-        -660,
-        -100
-      ],
-      "id": "f0620494-f1a4-453d-84a4-a1d94cf6f4d6",
-      "name": "Webhook1",
-      "webhookId": "8bd2939c-a3f4-44f9-81ea-0bc9ee86ce7d"
-    },
-    {
-      "parameters": {
-        "respondWith": "text",
-        "responseBody": "={{ $json.output }}",
-        "options": {}
-      },
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.1,
-      "position": [
-        200,
-        -100
-      ],
-      "id": "7e8e1255-9118-4b5a-b21d-07dce825bce7",
-      "name": "Respond to Webhook1"
-    },
-    {
-      "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.body.chatInput }}",
-        "options": {
-          "systemMessage": "=# Overview\nYou are the Jarvis personal assistant. Your job is to send the user's query to the correct tool. You should never be writing emails, or creating even summaries, you just need to call the correct tool.\n\n## Tools\n- emailAgent: Use this tool to take action in email\n- calendarAgent: Use this tool to take action in calendar\n- contactAgent: Use this tool to get, update, or add contacts\n- contentCreator: Use this tool to create blog posts\n- Tavily: Use this tool to search the web\n- PDB Agent: Use this tool to analyze this user query and extract/correct the molecule or protein name for database searching\n\n## Rules\n- Some actions require you to look up contact information first. For the following actions, you must get contact information and send that to the agent who needs it:\n  - sending emails\n  - drafting emails\n  - creating calendar event with attendee\n- If you are connected to emailAgent, dont response \"I'm unable to access or retrieve your emails directly\" rather use emailAgent. If you dont have emailAgent Connected then use default response.\n\n## Examples\n1) \n- Input: send an email to nate herkelman asking him what time he wants to leave\n  - Action: Use contactAgent to get nate herkelman's email\n  - Action: Use emailAgent to send the email. You will pass the tool a query like \"send nate herkelman an email to ask what time he wants to leave. here is his email: [email address]\n- Output: The email has been sent to Nate Herkelman. Anything else I can help you with?\n\n2)\n- Input: get me todays email\n- Action: use emailAgent\n- Output: Here is todays emails\n\n\n## Final Reminders\nHere is the current date/time: {{ $now }}\n"
-        }
-      },
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 1.7,
-      "position": [
-        -160,
-        -100
-      ],
-      "id": "c246c2a6-df7c-4681-a11d-dc6a701e0216",
-      "name": "Jarvis Assistant1"
     },
     {
       "parameters": {
@@ -182,9 +174,24 @@
         },
         "workflowInputs": {
           "mappingMode": "defineBelow",
-          "value": {},
-          "matchingColumns": [],
-          "schema": [],
+          "value": {
+            "query": "={{ /*n8n-auto-generated-fromAI-override*/ $fromAI('query', ``, 'string') }}"
+          },
+          "matchingColumns": [
+            "query"
+          ],
+          "schema": [
+            {
+              "id": "query",
+              "displayName": "query",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "canBeUsedToMatch": true,
+              "type": "string",
+              "removed": false
+            }
+          ],
           "attemptToConvertTypes": false,
           "convertFieldsToString": false
         }
@@ -192,93 +199,164 @@
       "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
       "typeVersion": 2.2,
       "position": [
-        140,
-        460
+        100,
+        660
       ],
       "id": "272ed693-03bc-4a2a-9477-70b356ceafae",
-      "name": "Call PDB Agent"
+      "name": "PDBAgent"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [
+        260,
+        660
+      ],
+      "id": "8435179c-15d6-4c21-a1fd-119041d35aff",
+      "name": "Calculator"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7ab380a2-a8d3-421c-ab4e-748ea8fb7904",
+              "name": "output",
+              "value": "Unable to perform task. Please try again.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "8933671b-c0fc-4144-844e-486e2b4f7711",
+      "name": "Try Again",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        560,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "schemaType": "manual",
+        "inputSchema": "{\n    \"response\": {\n        \"type\": \"array\",\n        \"items\": {\n            \"type\": \"string\"\n        }\n      },\n    \"agentName\": {\n          \"type\": \"string\"\n      },\n    \"cmd\": {\n          \"type\": \"string\"\n      }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        440,
+        640
+      ],
+      "id": "d893edbf-6c4d-4dcd-a46d-21fce9495a7f",
+      "name": "Structured Output Parser"
     }
   ],
   "pinData": {},
   "connections": {
-    "Email Agent1": {
-      "ai_tool": [
-        [
-          {
-            "node": "Jarvis Assistant1",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Window Buffer Memory1": {
       "ai_memory": [
-        [
-          {
-            "node": "Jarvis Assistant1",
-            "type": "ai_memory",
-            "index": 0
-          }
-        ]
+        []
       ]
     },
-    "Calculator1": {
-      "ai_tool": [
-        [
-          {
-            "node": "Jarvis Assistant1",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Calendar Agent1": {
-      "ai_tool": [
-        [
-          {
-            "node": "Jarvis Assistant1",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OpenAI Chat Model1": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "Jarvis Assistant1",
-            "type": "ai_languageModel",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "SerpAPI1": {
-      "ai_tool": [
-        [
-          {
-            "node": "Jarvis Assistant1",
-            "type": "ai_tool",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Webhook1": {
+    "Jarvis Assistant": {
       "main": [
         [
           {
-            "node": "Jarvis Assistant1",
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Try Again",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Jarvis Assistant1": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "EmailAgent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendar Agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "searchAgent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDBAgent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculator": {
+      "ai_tool": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Try Again": {
       "main": [
         [
           {
@@ -289,12 +367,12 @@
         ]
       ]
     },
-    "Call PDB Agent": {
-      "ai_tool": [
+    "Structured Output Parser": {
+      "ai_outputParser": [
         [
           {
-            "node": "Jarvis Assistant1",
-            "type": "ai_tool",
+            "node": "Jarvis Assistant",
+            "type": "ai_outputParser",
             "index": 0
           }
         ]
@@ -305,7 +383,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "cb734029-b085-47a6-a820-36131d4fc618",
+  "versionId": "0050817d-2a45-4dff-a787-f3531bf48b93",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "9429cdf59a5e5ec05a4b2131987b9376af4f1dbc9e7f8a8e7599716b950c2b0e"

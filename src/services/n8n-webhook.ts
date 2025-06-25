@@ -89,24 +89,54 @@ export class N8nWebhookService {
         // Try to parse as JSON
         data = JSON.parse(responseText);
         console.log('Parsed JSON data:', data);
-        
-        // Handle the new structured response format
-        if (data.responseText && data.agentName) {
-          console.log('=== STRUCTURED RESPONSE DETECTED ===');
+
+        // Handle the new response format
+        if (data.response !== undefined && data.agentName) {
+          console.log('=== NEW RESPONSE FORMAT DETECTED ===');
+          agentName = data.agentName;
+          metadata = { ...data };
+          let mainResponse = '';
+
+          if (Array.isArray(data.response)) {
+            // For PDBAgent, response is an array of stringified JSON
+            if (data.agentName === 'PDBAgent' && data.response.length > 0) {
+              try {
+                const pdbObj = JSON.parse(data.response[0]);
+                mainResponse = pdbObj.responseText || '';
+                pdbData = {
+                  pdbId: pdbObj.pdbId,
+                  pdbUrl: pdbObj.pdbUrl,
+                  proteinName: pdbObj.proteinName,
+                  proteinDataPDB: pdbObj.proteinDataPDB,
+                  query_id: pdbObj.query_id,
+                  result_set: pdbObj.result_set
+                };
+                console.log('Extracted PDB data:', pdbData);
+              } catch (e) {
+                mainResponse = 'Error parsing PDBAgent response.';
+              }
+            } else {
+              // For other agents, join array as string
+              mainResponse = data.response.map((r: any) => (typeof r === 'string' ? r : JSON.stringify(r))).join('\n');
+            }
+          } else if (typeof data.response === 'string' || typeof data.response === 'number') {
+            mainResponse = String(data.response);
+          } else {
+            mainResponse = JSON.stringify(data.response);
+          }
+
+          outputMessage = mainResponse;
+          console.log('- mainResponse:', mainResponse);
+          console.log('- agentName:', agentName);
+          console.log('- metadata:', metadata);
+        }
+        // Fallback to old structured format
+        else if (data.responseText && data.agentName) {
+          console.log('=== OLD STRUCTURED RESPONSE DETECTED ===');
           outputMessage = data.responseText;
           agentName = data.agentName;
           metadata = { ...data };
-          // delete metadata.responseText;
-          // delete metadata.agentName;
-          
-          console.log('Extracted structured data:');
-          console.log('- responseText:', outputMessage);
-          console.log('- agentName:', agentName);
-          console.log('- metadata:', metadata);
-          
-          // Extract PDB-specific data if this is from PDB Agent
           if (data.agentName === 'PDBAgent' && data.pdbId) {
-            console.log('=== PDB AGENT DATA DETECTED ===');
             pdbData = {
               pdbId: data.pdbId,
               pdbUrl: data.pdbUrl,
@@ -116,37 +146,8 @@ export class N8nWebhookService {
               result_set: data.result_set
             };
             console.log('Extracted PDB data:', pdbData);
-          } else if (data.agentName === 'PDBAgent') {
-            console.log('=== PDB AGENT RESPONSE WITHOUT PDB ID ===');
-            console.log('PDB Agent response but no pdbId found:', data);
           }
-        }
-        // // Handle array format: [{"output": "message"}]
-        // else if (Array.isArray(data) && data.length > 0 && data[0].output) {
-        //   console.log('=== ARRAY RESPONSE FORMAT ===');
-        //   outputMessage = data[0].output;
-        //   metadata = { ...data[0] };
-        //   delete metadata.output;
-        //   console.log('Array response data:', { outputMessage, metadata });
-        // }
-        // // Handle direct object format: {"output": "message"}
-        // else if (data.output) {
-        //   console.log('=== OBJECT RESPONSE FORMAT ===');
-        //   outputMessage = data.output;
-        //   metadata = { ...data };
-        //   delete metadata.output;
-        //   console.log('Object response data:', { outputMessage, metadata });
-        // }
-        // Handle other JSON formats
-        // else if (data.message) {
-        //   console.log('=== MESSAGE RESPONSE FORMAT ===');
-        //   outputMessage = data.message;
-        //   metadata = { ...data };
-        //   delete metadata.message;
-        //   console.log('Message response data:', { outputMessage, metadata });
-        // }
-        // Fallback to stringify the whole response
-        else {
+        } else {
           console.log('=== FALLBACK RESPONSE FORMAT ===');
           outputMessage = JSON.stringify(data);
           metadata = data;

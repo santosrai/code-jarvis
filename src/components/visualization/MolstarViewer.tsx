@@ -56,7 +56,7 @@ export const MolstarViewer: React.FC<MolstarViewerProps> = ({
         pluginRef.current = await createPluginUI({
           target: containerRef.current!,
           spec,
-          render: (element: React.ReactElement, container: HTMLElement) =>
+          render: (element: React.ReactElement, container: any) =>
             createRoot(container).render(element),
         });
 
@@ -105,10 +105,9 @@ export const MolstarViewer: React.FC<MolstarViewerProps> = ({
         await pluginRef.current!.clear();
 
         let url: string | undefined;
-        let format: "pdb" | "sdf";
+        let format: "pdb" | "sdf" | undefined = undefined;
 
         if (currentLayer.type === "molecule_3d_sdf" && currentLayer.cid) {
-          // For molecules, try to use PubChem 3D URL if CID is available
           url = `https://pubchem.ncbi.nlm.nih.gov/rest/pug/compound/cid/${currentLayer.cid}/SDF?record_type=3d`;
           format = "sdf";
           console.log("Trying PubChem 3D URL:", url);
@@ -116,13 +115,12 @@ export const MolstarViewer: React.FC<MolstarViewerProps> = ({
           currentLayer.type === "protein_3d_pdb" &&
           currentLayer.pdbId
         ) {
-          // For proteins, use PDB URL if ID is available
-          url = `https://files.rcsb.org/view/${currentLayer.pdbId}.pdb`;
+          url = `https://files.rcsb.org/download/${currentLayer.pdbId}.pdb`;
           format = "pdb";
           console.log("Using PDB URL:", url);
         }
 
-        if (url) {
+        if (url && format) {
           console.log("Loading structure:", { url, format });
 
           // Download and parse the structure
@@ -175,7 +173,7 @@ export const MolstarViewer: React.FC<MolstarViewerProps> = ({
           }
 
           // Focus on the structure
-          if (structure.data?.units.length > 0) {
+          if (structure.data && structure.data.units && structure.data.units.length > 0) {
             pluginRef.current!.managers.camera.focusLoci(
               structure.data.units[0].lookup3d.boundary.sphere,
             );
@@ -236,7 +234,7 @@ export const MolstarViewer: React.FC<MolstarViewerProps> = ({
               );
             }
 
-            if (structure.data?.units.length > 0) {
+            if (structure.data && structure.data.units && structure.data.units.length > 0) {
               pluginRef.current!.managers.camera.focusLoci(
                 structure.data.units[0].lookup3d.boundary.sphere,
               );
