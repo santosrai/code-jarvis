@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Paperclip, Send, Loader2 } from "lucide-react";
 import { useAppContext } from "@/contexts/AppContext";
 import { useToast } from "@/hooks/use-toast";
+import { getN8nWebhookService } from "@/services/n8n-webhook";
+import { getProteinPdbById } from "@/services/pdb";
 
 import {
   generateChatResponse,
@@ -13,6 +15,37 @@ import {
 } from "@/ai/flows/generate-chat-response-flow";
 
 import type { Message, VisualizationLayer } from "@/types";
+
+// Helper function to extract PDB IDs from text response
+const extractPdbIdsFromResponse = (text: string): string[] => {
+  // PDB ID pattern: 4 alphanumeric characters (e.g., 1ABC, 2XYZ)
+  // Updated to be more specific and avoid false positives
+  const pdbIdPattern = /\b([A-Z0-9]{4})\b/g;
+  const matches = text.match(pdbIdPattern);
+  
+  console.log('Extracting PDB IDs from text:', text);
+  console.log('Raw matches:', matches);
+  
+  if (!matches) return [];
+  
+  // Remove duplicates and filter out common false positives
+  const uniqueIds = [...new Set(matches)];
+  const filteredIds = uniqueIds.filter(id => {
+    // Filter out common false positives like "HTTP", "JSON", "HTML", etc.
+    const falsePositives = ['HTTP', 'JSON', 'HTML', 'REST', 'API', 'URL', 'POST', 'GET', 'PUT', 'DELETE', 'PDB', 'RCSB'];
+    const isFalsePositive = falsePositives.includes(id);
+    
+    // Additional check: PDB IDs should not be all the same character
+    const isRepeated = /^(.)\1{3}$/.test(id);
+    
+    console.log(`PDB ID candidate: ${id}, isFalsePositive: ${isFalsePositive}, isRepeated: ${isRepeated}`);
+    
+    return !isFalsePositive && !isRepeated;
+  });
+  
+  console.log('Filtered PDB IDs:', filteredIds);
+  return filteredIds;
+};
 
 export const ChatInput: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
   const [inputValue, setInputValue] = useState("");
@@ -26,6 +59,8 @@ export const ChatInput: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
     setActiveVisualizationLayer,
     addGpuUsage,
     profile,
+    backendConfig,
+    sessionData,
   } = useAppContext();
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -58,8 +93,6 @@ export const ChatInput: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
     });
     if (!thinkingMessage) {
       setIsSending(false);
-      // User message was added, but thinking message failed. This state is unusual.
-      // Consider if userMessage should be removed or if this is acceptable.
       return;
     }
 
@@ -69,8 +102,125 @@ export const ChatInput: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
       let copilotResponseMessage: Partial<Message> = { isLoading: false };
       let layerIdToActivate: string | null = null;
 
+      // Handle different backends
+      if (backendConfig.type === 'n8n') {
+        // n8n backend handling
+        if (!sessionData?.sessionId) {
+          throw new Error('No session ID available for n8n backend');
+        }
 
-        // General chat, potentially with PubChem tool usage
+        updateMessageInActiveChat(thinkingMessage.id, {
+          isLoading: true,
+          content: `Sending message to n8n workflow...`,
+        });
+
+        const n8nService = getN8nWebhookService();
+        if (!n8nService) {
+          throw new Error(
+            'n8n webhook service not configured. Please check your environment variables. ' +
+            'Add NEXT_PUBLIC_N8N_WEBHOOK_URL to your .env.local file with your actual n8n webhook URL.'
+          );
+        }
+
+        const response = await n8nService.sendChatMessage(trimmedInput, sessionData.sessionId);
+
+        console.log('=== N8N RESPONSE DEBUG ===');
+        console.log('Raw response:', response);
+        console.log('Response agentName:', response.agentName);
+        console.log('Response cmd:', response.cmd);
+        console.log('Response response:', response.response);
+        console.log('========================');
+
+        let chatContent = '';
+        let pdbId = null;
+        let pdbUrl = null;
+        let proteinName = null;
+        let proteinDataPDB = null;
+        let shouldUpdateCanvas = false;
+
+        if (response.agentName === 'PDBAgent' && Array.isArray(response.response) && response.response.length > 0) {
+          // Parse the first stringified JSON in the array
+          try {
+            const pdbObj = JSON.parse(response.response[0]);
+            chatContent = pdbObj.responseText || '';
+            pdbId = pdbObj.pdbId;
+            pdbUrl = pdbObj.pdbUrl;
+            proteinName = pdbObj.proteinName;
+            proteinDataPDB = pdbObj.proteinDataPDB;
+          } catch (e) {
+            chatContent = 'Error parsing PDBAgent response.';
+          }
+        } else if (typeof response.response === 'string') {
+          chatContent = response.response;
+        } else {
+          chatContent = JSON.stringify(response.response);
+        }
+
+        // Always show the response in chat
+        copilotResponseMessage.content = chatContent;
+
+        // Only update the 3D canvas if cmd is 'update canvas' and we have a valid pdbId
+        if (
+          response.agentName === 'PDBAgent' &&
+          response.cmd === 'update canvas' &&
+          pdbId && pdbId !== 'N/A'
+        ) {
+          // Create a pending layer for the PDB structure
+          const pendingLayer = addVisualizationLayerToActiveChat({
+            promptMessageId: userMessage.id,
+            name: `Loading ${pdbId.toUpperCase()}...`,
+            type: 'protein_3d_pdb',
+            data: 'Loading...',
+            pdbId: pdbId.toUpperCase(),
+            status: 'pending',
+            components: [{ id: 'protein', name: 'Protein', visible: true }],
+          });
+
+          if (pendingLayer) {
+            pendingLayerId = pendingLayer.layerId;
+            updateMessageInActiveChat(thinkingMessage.id, {
+              isLoading: true,
+              content: `Found PDB ID: ${pdbId.toUpperCase()}. Loading 3D structure...`,
+            });
+            try {
+              // Fetch PDB data from the RCSB database
+              const pdbResult = await getProteinPdbById(pdbId);
+              if (pdbResult) {
+                updateVisualizationLayerInActiveChat(pendingLayerId, {
+                  name: `${pdbResult.name} (${pdbId.toUpperCase()})`,
+                  data: pdbResult.pdb,
+                  pdbUrl: pdbResult.pdbUrl,
+                  pdbId: pdbResult.pdbId,
+                  status: 'loaded',
+                });
+                layerIdToActivate = pendingLayerId;
+                copilotResponseMessage.content += `\n\n✅ Successfully loaded ${pdbResult.name} (${pdbId.toUpperCase()}) in the 3D viewer!`;
+              } else {
+                updateVisualizationLayerInActiveChat(pendingLayerId, {
+                  name: `Failed to load ${pdbId.toUpperCase()}`,
+                  data: `Could not fetch PDB data for ${pdbId.toUpperCase()}. The structure might not exist or be accessible.`,
+                  status: 'error',
+                });
+                copilotResponseMessage.content += `\n\n❌ Could not load PDB structure for ${pdbId.toUpperCase()}. The structure might not exist or be accessible.`;
+              }
+            } catch (pdbError) {
+              updateVisualizationLayerInActiveChat(pendingLayerId, {
+                name: `Error loading ${pdbId.toUpperCase()}`,
+                data: `Error fetching PDB data: ${pdbError instanceof Error ? pdbError.message : 'Unknown error'}`,
+                status: 'error',
+              });
+              copilotResponseMessage.content += `\n\n❌ Error loading PDB structure for ${pdbId.toUpperCase()}.`;
+            }
+            if (layerIdToActivate) {
+              copilotResponseMessage.visualizationLayerId = layerIdToActivate;
+              setActiveVisualizationLayer(layerIdToActivate);
+            }
+          }
+        }
+        updateMessageInActiveChat(thinkingMessage.id, copilotResponseMessage);
+        return;
+      } else {
+        // Gemini AI backend handling (existing logic)
         updateMessageInActiveChat(thinkingMessage.id, {
           isLoading: true,
           content: `AI is thinking...`,
@@ -78,7 +228,7 @@ export const ChatInput: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
         const chatResponse: GenerateChatResponseOutput =
           await generateChatResponse({ command: trimmedInput });
 
-      copilotResponseMessage.content = chatResponse.responseText;
+        copilotResponseMessage.content = chatResponse.responseText;
 
         // Handle the regular chat response and structure data
         console.log("Chat response structure data:", {
@@ -166,18 +316,20 @@ export const ChatInput: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
         }
 
         if (layerIdToActivate) {
-        copilotResponseMessage.visualizationLayerId = layerIdToActivate;
-        console.log("Setting active visualization layer:", layerIdToActivate);
-        setActiveVisualizationLayer(layerIdToActivate);
+          copilotResponseMessage.visualizationLayerId = layerIdToActivate;
+          console.log("Setting active visualization layer:", layerIdToActivate);
+          setActiveVisualizationLayer(layerIdToActivate);
+        }
+        updateMessageInActiveChat(thinkingMessage.id, copilotResponseMessage);
       }
-      updateMessageInActiveChat(thinkingMessage.id, copilotResponseMessage);
-    
     } catch (error) {
       console.error("Error processing command:", error);
-      let errorMessage =
-        "Sorry, I encountered an error trying to understand or execute your command.";
+      let errorMessage = "Sorry, I encountered an error trying to understand or execute your command.";
+      
       if (error instanceof Error) {
-        if (
+        if (backendConfig.type === 'n8n') {
+          errorMessage = `n8n workflow error: ${error.message}`;
+        } else if (
           error.message.includes("API key") ||
           error.message.includes("Quota") ||
           error.message.includes("model not found") ||
@@ -189,6 +341,7 @@ export const ChatInput: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
           errorMessage += ` Details: ${error.message}`;
         }
       }
+      
       updateMessageInActiveChat(thinkingMessage.id, {
         content: errorMessage,
         isLoading: false,
@@ -198,11 +351,6 @@ export const ChatInput: React.FC<{ disabled?: boolean }> = ({ disabled }) => {
           status: "error",
           data: errorMessage,
         });
-      toast({
-        variant: "destructive",
-        title: "AI Error",
-        description: "Could not process command. Check console for details.",
-      });
     } finally {
       setIsSending(false);
     }

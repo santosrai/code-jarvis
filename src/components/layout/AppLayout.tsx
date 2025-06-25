@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useCallback, useRef } from 'react';
@@ -8,6 +7,7 @@ import { ProfilePane } from '@/components/profile/ProfilePane';
 import { ScriptListPane } from '@/components/script/ScriptListPane';
 import { ChatPane } from '@/components/chat/ChatPane';
 import { VisualizerPane } from '@/components/visualization/VisualizerPane';
+import { BackendSelectionModal } from '@/components/ui/backend-selection-modal';
 import { useAppContext } from '@/contexts/AppContext';
 import { Toaster } from "@/components/ui/toaster";
 import { Skeleton } from '@/components/ui/skeleton';
@@ -63,7 +63,7 @@ const ResizableSplitter: React.FC<{
 };
 
 export const AppLayout: React.FC = () => {
-  const { currentView, isInitializing, isChatHistoryPanelVisible } = useAppContext();
+  const { currentView, isInitializing, isChatHistoryPanelVisible, showBackendSelection } = useAppContext();
   
   // Panel widths (in pixels)
   const [chatHistoryWidth, setChatHistoryWidth] = useState(280);
@@ -121,6 +121,7 @@ export const AppLayout: React.FC = () => {
           )}
         </main>
         <Toaster />
+        <BackendSelectionModal />
       </div>
     );
   }
@@ -172,6 +173,7 @@ export const AppLayout: React.FC = () => {
         )}
       </main>
       <Toaster />
+      <BackendSelectionModal />
     </div>
   );
 };

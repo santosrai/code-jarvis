@@ -1,0 +1,331 @@
+{
+  "name": "My Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "name": "emailAgent",
+        "description": "Call this tool for any email actions.",
+        "workflowId": {
+          "__rl": true,
+          "value": "gviGYISCDeMms4d7",
+          "mode": "list",
+          "cachedResultName": "Email Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2,
+      "position": [
+        240,
+        560
+      ],
+      "id": "5dde6434-ca3b-439e-903c-b9af34befd12",
+      "name": "Email Agent"
+    },
+    {
+      "parameters": {
+        "sessionIdType": "customKey",
+        "sessionKey": "={{ $('Webhook').item.json.body.sessionId }}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.memoryBufferWindow",
+      "typeVersion": 1.3,
+      "position": [
+        240,
+        280
+      ],
+      "id": "77a2c5bc-ce34-40e8-94a8-2ba3c9332ec4",
+      "name": "Window Buffer Memory"
+    },
+    {
+      "parameters": {},
+      "type": "@n8n/n8n-nodes-langchain.toolCalculator",
+      "typeVersion": 1,
+      "position": [
+        860,
+        540
+      ],
+      "id": "1bfd09bf-a94c-4abf-b4e8-787048d025e2",
+      "name": "Calculator"
+    },
+    {
+      "parameters": {
+        "name": "calendarAgent",
+        "description": "Call this tool for any calendar action.",
+        "workflowId": {
+          "__rl": true,
+          "value": "ensS1jXOxUi5ZTVs",
+          "mode": "list",
+          "cachedResultName": "Calendar Agent"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolWorkflow",
+      "typeVersion": 2,
+      "position": [
+        480,
+        560
+      ],
+      "id": "1c182c70-149b-48bb-a6d3-774daeb79ba1",
+      "name": "Calendar Agent"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.1,
+      "position": [
+        60,
+        260
+      ],
+      "id": "0051ce62-5c05-4383-b22b-b08e8ad5070f",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "zQKphmcQgXIuv9Rt",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolSerpApi",
+      "typeVersion": 1,
+      "position": [
+        680,
+        540
+      ],
+      "id": "05d605ce-f57c-4e1a-b19a-29b9779fc496",
+      "name": "SerpAPI",
+      "credentials": {
+        "serpApi": {
+          "id": "IWnil3jRW8ChKfhg",
+          "name": "SerpAPI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "8bd2939c-a3f4-44f9-81ea-0bc9ee86ce7d",
+        "responseMode": "responseNode",
+        "options": {
+          "rawBody": false
+        }
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        0,
+        0
+      ],
+      "id": "53f31bd4-d7e8-487d-9e27-9039452be896",
+      "name": "Webhook",
+      "webhookId": "8bd2939c-a3f4-44f9-81ea-0bc9ee86ce7d"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.output }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        860,
+        0
+      ],
+      "id": "dfc4ee60-135f-48d4-a4ba-9114fcd6878e",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.body.chatInput }}",
+        "options": {
+          "systemMessage": "=# Overview\nYou are the Jarvis personal assistant. Your job is to send the user's query to the correct tool. You should never be writing emails, or creating even summaries, you just need to call the correct tool.\n\n## Tools\n- emailAgent: Use this tool to take action in email\n- calendarAgent: Use this tool to take action in calendar\n- contactAgent: Use this tool to get, update, or add contacts\n- contentCreator: Use this tool to create blog posts\n- Tavily: Use this tool to search the web\n\n## Rules\n- Some actions require you to look up contact information first. For the following actions, you must get contact information and send that to the agent who needs it:\n  - sending emails\n  - drafting emails\n  - creating calendar event with attendee\n- If you are connected to emailAgent, dont response \"I'm unable to access or retrieve your emails directly\" rather use emailAgent. If you dont have emailAgent Connected then use default response.\n\n## Examples\n1) \n- Input: send an email to nate herkelman asking him what time he wants to leave\n  - Action: Use contactAgent to get nate herkelman's email\n  - Action: Use emailAgent to send the email. You will pass the tool a query like \"send nate herkelman an email to ask what time he wants to leave. here is his email: [email address]\n- Output: The email has been sent to Nate Herkelman. Anything else I can help you with?\n\n2)\n- Input: get me todays email\n- Action: use emailAgent\n- Output: Here is todays emails\n\n\n## Final Reminders\nHere is the current date/time: {{ $now }}\n- pdbSearchTool: Use this tool to search for a protein structure by name\n- pdbFetchTool: Use this tool to fetch the actual PDB file once you have the PDB ID"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 1.7,
+      "position": [
+        500,
+        0
+      ],
+      "id": "a0846061-3acc-48b9-aeb5-291a3488e8ce",
+      "name": "Jarvis Assistant"
+    },
+    {
+      "parameters": {
+        "url": "https://search.rcsb.org/rcsbsearch/v2/query",
+        "method": "POST",
+        "responseFormat": "json",
+        "jsonParameters": true,
+        "options": {},
+        "bodyParametersJson": "{\n \"query\": {\n   \"type\": \"terminal\",\n   \"service\": \"full_text\",\n   \"parameters\": {\n     \"value\": \"{{$json.protein}}\"\n   }\n },\n \"return_type\": \"entry\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1,
+      "position": [
+        400,
+        600
+      ],
+      "id": "pdb-search-tool",
+      "name": "PDB Search Tool"
+    },
+    {
+      "parameters": {
+        "url": "https://files.rcsb.org/download/{{$json.pdbId}}.pdb",
+        "responseFormat": "string"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1,
+      "position": [
+        600,
+        600
+      ],
+      "id": "pdb-fetch-tool",
+      "name": "PDB Fetch Tool"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Email Agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Window Buffer Memory": {
+      "ai_memory": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_memory",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calculator": {
+      "ai_tool": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Calendar Agent": {
+      "ai_tool": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI": {
+      "ai_tool": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Jarvis Assistant": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDB Search Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDB Fetch Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "Jarvis Assistant",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "8dc9808d-8a4c-49dd-a66f-26d318023faf",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9429cdf59a5e5ec05a4b2131987b9376af4f1dbc9e7f8a8e7599716b950c2b0e"
+  },
+  "id": "cnbYTeA77LfkBJDv",
+  "tags": []
+}

@@ -1,0 +1,208 @@
+{
+  "name": "PDB Agent",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "1a8a6224-24d2-46a4-8092-b65e02468188",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a molecular biology expert. Analyze this user query and extract/correct the molecule or protein name for database searching.\n\nCommon corrections needed:\n- Fix spelling errors (e.g., \"caffiene\" → \"caffeine\")\n- Standardize names (e.g., \"acetylsalicylic acid\" → \"aspirin\")\n- Extract the actual molecule/protein name from conversational text\n- Use common database names\n\nReturn the best search term for PDB/PubChem databases.\n\n## Rules\njust need to call the correct tool.\n\n## Tools:\n- pdbSearchTool: Use this tool to search for a protein structure by name\n- pdbFetchTool: Use this tool to fetch the actual PDB file once you have the PDB ID",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "id": "1b346ae4-85e5-4ea0-b354-3f93e61bf8f1",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://search.rcsb.org/rcsbsearch/v2/query",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"query\": {\n    \"type\": \"terminal\",\n    \"service\": \"full_text\",\n    \"parameters\": {\n      \"value\": \"hemoglobin\"\n    }\n  },\n  \"return_type\": \"entry\",\n   \"request_options\": {\n        \"paginate\": {\n          \"start\": 0,\n          \"rows\": 5\n        }\n      }\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1,
+      "position": [
+        340,
+        360
+      ],
+      "id": "9483c865-5344-4215-82d1-b9dc0553dc79",
+      "name": "PDB Search Tool"
+    },
+    {
+      "parameters": {
+        "url": "https://files.rcsb.org/download/{{$json.pdbId}}.pdb"
+      },
+      "type": "@n8n/n8n-nodes-langchain.toolHttpRequest",
+      "typeVersion": 1,
+      "position": [
+        580,
+        380
+      ],
+      "id": "dd2bb505-f47a-4f59-9f61-6dcfd8ed69a0",
+      "name": "PDB Fetch Tool"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-3.5-turbo",
+          "mode": "list",
+          "cachedResultName": "gpt-3.5-turbo"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        40,
+        300
+      ],
+      "id": "841aabcc-cab4-42ca-ae73-23076cc9ce46",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "zQKphmcQgXIuv9Rt",
+          "name": "OpenAi account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "7ab380a2-a8d3-421c-ab4e-748ea8fb7904",
+              "name": "response",
+              "value": "Unable to perform task. Please try again.",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "687b2467-1633-4aa9-b333-899dd5f1b147",
+      "name": "Try Again",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        740,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "39c2f302-03be-4464-a17a-d7cc481d6d44",
+              "name": "=response",
+              "value": "={{$json.output}}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "0cd307c7-406d-4e3d-918f-aef07b8436f3",
+      "name": "Success",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        740,
+        -100
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDB Search Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "PDB Fetch Tool": {
+      "ai_tool": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_tool",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Success",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Try Again",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "0e8092f7-99c2-4bbb-9b60-ee4eacaf2b3d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "9429cdf59a5e5ec05a4b2131987b9376af4f1dbc9e7f8a8e7599716b950c2b0e"
+  },
+  "id": "oVcbzEYNe2kdPOyB",
+  "tags": []
+}

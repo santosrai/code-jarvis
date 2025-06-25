@@ -3,6 +3,18 @@ export interface Profile {
   estimatedGpuUsage: number; // in seconds
 }
 
+export type BackendType = "gemini" | "n8n";
+
+export interface BackendConfig {
+  type: BackendType;
+  n8nWebhookUrl?: string;
+}
+
+export interface SessionData {
+  sessionId: string;
+  backendType: BackendType;
+}
+
 export interface Message {
   id: string;
   sender: "user" | "copilot";

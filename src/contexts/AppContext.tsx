@@ -1,7 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
-import type { Profile, ChatSession, Message, VisualizationLayer, AppView } from '@/types';
+import type { Profile, ChatSession, Message, VisualizationLayer, AppView, BackendType, BackendConfig, SessionData } from '@/types';
 import { useProfile } from '@/hooks/useProfile';
 import { useChats } from '@/hooks/useChats';
 
@@ -11,6 +11,13 @@ interface AppContextType {
   updateDisplayName: (name: string) => void;
   addGpuUsage: (seconds: number) => void;
   resetGpuUsage: () => void;
+
+  // Backend Configuration
+  backendConfig: BackendConfig;
+  sessionData: SessionData | null;
+  setBackendType: (type: BackendType) => void;
+  generateSessionId: () => string;
+  initializeSession: () => void;
 
   // Chat Sessions
   chats: ChatSession[];
@@ -38,6 +45,8 @@ interface AppContextType {
 
   // Loading state
   isInitializing: boolean;
+  showBackendSelection: boolean;
+  setShowBackendSelection: (show: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -48,16 +57,61 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [currentView, setCurrentView] = useState<AppView>("chat");
   const [isChatHistoryPanelVisible, setIsChatHistoryPanelVisible] = useState(true);
   const [isInitializing, setIsInitializing] = useState(true);
+  const [showBackendSelection, setShowBackendSelection] = useState(false);
+  
+  // Backend configuration state
+  const [backendConfig, setBackendConfig] = useState<BackendConfig>({ type: "gemini" });
+  const [sessionData, setSessionData] = useState<SessionData | null>(null);
+
+  // Generate unique 10-digit session ID
+  const generateSessionId = (): string => {
+    return Math.floor(1000000000 + Math.random() * 9000000000).toString();
+  };
+
+  // Initialize session with backend type
+  const initializeSession = () => {
+    const sessionId = generateSessionId();
+    setSessionData({
+      sessionId,
+      backendType: backendConfig.type
+    });
+  };
+
+  // Set backend type and update localStorage
+  const setBackendType = (type: BackendType) => {
+    const newConfig = { ...backendConfig, type };
+    setBackendConfig(newConfig);
+    localStorage.setItem('codeJarvisBackendType', type);
+    
+    // Initialize session for n8n backend
+    if (type === 'n8n') {
+      initializeSession();
+    }
+    
+    setShowBackendSelection(false);
+  };
 
   useEffect(() => {
+    // Load backend preference from localStorage
+    const savedBackendType = localStorage.getItem('codeJarvisBackendType') as BackendType;
+    if (savedBackendType && (savedBackendType === 'gemini' || savedBackendType === 'n8n')) {
+      setBackendConfig({ type: savedBackendType });
+      if (savedBackendType === 'n8n') {
+        initializeSession();
+      }
+    } else {
+      // Show backend selection if no preference is saved
+      setShowBackendSelection(true);
+    }
+    
     setIsInitializing(false);
   }, []);
 
   useEffect(() => {
-    if (!isInitializing && chatState.chats.length === 0) {
+    if (!isInitializing && chatState.chats.length === 0 && !showBackendSelection) {
       chatState.createNewChat();
     }
-  }, [isInitializing, chatState.chats.length, chatState.createNewChat]);
+  }, [isInitializing, chatState.chats.length, chatState.createNewChat, showBackendSelection]);
 
   const toggleChatHistoryPanelVisibility = () => {
     setIsChatHistoryPanelVisible(prev => !prev);
@@ -66,11 +120,18 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const contextValue: AppContextType = {
     ...profileState,
     ...chatState,
+    backendConfig,
+    sessionData,
+    setBackendType,
+    generateSessionId,
+    initializeSession,
     currentView,
     setCurrentView,
     isChatHistoryPanelVisible,
     toggleChatHistoryPanelVisibility,
     isInitializing,
+    showBackendSelection,
+    setShowBackendSelection,
   };
 
   return <AppContext.Provider value={contextValue}>{children}</AppContext.Provider>;
